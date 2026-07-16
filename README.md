@@ -60,7 +60,54 @@ in the Flutter app needs to change — just swap which backend it points to.
 | POST   | `/stream/token`       | `{ "userId": "user-1" }`                | `{ "token": "..." }`|
 | POST   | `/stream/upsert-user` | `{ "userId", "name", "image" }`         | `{ "ok": true }`     |
 
-## Before going to production
+## Deploy to Render
+
+1. **Push this folder to a GitHub repo** (Render deploys from a git repo).
+   ```bash
+   git init
+   git add .
+   git commit -m "Stream video token backend"
+   git branch -M main
+   git remote add origin https://github.com/<you>/stream-backend-python.git
+   git push -u origin main
+   ```
+   Your `.gitignore` already excludes `.env`, so your Secret won't be committed — good.
+
+2. **Create the service on Render**
+   - Go to [dashboard.render.com](https://dashboard.render.com) → **New** → **Web Service**.
+   - Connect your GitHub account and select this repo.
+   - Render will detect `render.yaml` in this folder and pre-fill the settings. If it doesn't auto-detect, set manually:
+     - **Runtime**: Python 3
+     - **Build Command**: `pip install -r requirements.txt`
+     - **Start Command**: `gunicorn -w 2 -b 0.0.0.0:$PORT server:app`
+     - **Plan**: Free (fine for testing; free tier sleeps after inactivity and takes ~30–60s to wake on the next request)
+
+3. **Set environment variables** (Render dashboard → your service → **Environment**):
+   ```
+   STREAM_API_KEY = 7jfwj7kcbqtd
+   STREAM_API_SECRET = your_real_secret
+   ```
+   Do **not** put these in `render.yaml` or commit them — set them directly in Render's dashboard, which is what `sync: false` in `render.yaml` signals.
+
+4. **Deploy** — Render will build and give you a URL like:
+   ```
+   https://stream-video-token-backend.onrender.com
+   ```
+
+5. **Verify it**:
+   ```bash
+   curl -X POST https://stream-video-token-backend.onrender.com/stream/token \
+     -H "Content-Type: application/json" \
+     -d '{"userId":"user-1"}'
+   ```
+
+6. **Update the Flutter app** — in `lib/main.dart`:
+   ```dart
+   const String kBackendBaseUrl = 'https://stream-video-token-backend.onrender.com';
+   ```
+   Since this is now real `https://`, you can **remove** the `NSAppTransportSecurity` exception you added earlier to `ios/Runner/Info.plist` for local `http://` testing — it's no longer needed.
+
+
 
 - **Add real authentication** to `/stream/token`. Right now it trusts
   whatever `userId` is sent in the request body — anyone who can reach this
